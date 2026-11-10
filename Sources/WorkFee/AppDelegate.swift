@@ -57,7 +57,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         model.startClock()
         if let warning = warning { showError(warning) }
         if verifying {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.verifyInterface() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                Task { @MainActor in await self.verifyInterface() }
+            }
         }
     }
 
