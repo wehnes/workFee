@@ -1,0 +1,40 @@
+name: Build macOS app
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test core calculations and persistence
+        run: swift test --configuration release --arch arm64
+      - name: Build and sign Apple Silicon app
+        run: bash scripts/build.sh
+      - name: Verify actual app windows
+        env:
+          WORKFEE_VERIFY_OUTPUT: ${{ github.workspace }}/.build/verification
+        run: |
+          dist/WorkFee.app/Contents/MacOS/WorkFee --verify-ui
+          test -f .build/verification/verification.txt
+      - name: Package application and verification images
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent dist/WorkFee.app dist/WorkFee-macOS-arm64.zip
+          ditto -c -k --keepParent .build/verification dist/WorkFee-verification.zip
+          cd dist
+          shasum -a 256 WorkFee-macOS-arm64.zip > SHA256SUMS.txt
+      - name: Publish downloadable app
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          TAG="macos-v1.0.0-${GITHUB_RUN_NUMBER}"
+          gh release create "$TAG" --target "$GITHUB_SHA" --title "WorkFee macOS 1.0.0 · Build ${GITHUB_RUN_NUMBER}" --notes-file RELEASE_NOTES.md dist/WorkFee-macOS-arm64.zip dist/SHA256SUMS.txt dist/WorkFee-verification.zip
